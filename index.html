@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mes Lunes">
+<meta name="description" content="Mes Lunes, a simple private menstrual cycle tracker.">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="apple-touch-icon.png">
+<title>Mes Lunes</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&display=swap">
+<style>
+/* Layout: one narrow column, three tabs (Today, Calendar, History). Raspberry marks the period, teal the fertile window, amber the ovulation day. */
+:root {
+  --bg: #F7F4F6;
+  --surface: #FFFFFF;
+  --ink: #2A2227;
+  --muted: #6E636A;
+  --line: #E7DFE4;
+  --period: #B3345A;
+  --period-soft: #F7DEE6;
+  --fertile: #1B7F78;
+  --fertile-soft: #D5EEEB;
+  --ovul: #A56A05;
+  --ovul-soft: #F8E8C6;
+  --on-accent: #FFFFFF;
+  --focus: #2A2227;
+  --f-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #171316; --surface: #211B1F; --ink: #F1E9EE; --muted: #A89BA2; --line: #382E34;
+    --period: #E26B8F; --period-soft: #4A2332; --fertile: #4CC2B8; --fertile-soft: #17383A;
+    --ovul: #E8B04A; --ovul-soft: #4A3812; --on-accent: #1A0F14; --focus: #F1E9EE;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #171316; --surface: #211B1F; --ink: #F1E9EE; --muted: #A89BA2; --line: #382E34;
+  --period: #E26B8F; --period-soft: #4A2332; --fertile: #4CC2B8; --fertile-soft: #17383A;
+  --ovul: #E8B04A; --ovul-soft: #4A3812; --on-accent: #1A0F14; --focus: #F1E9EE;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 16px; line-height: 1.45; padding-inline: 16px; padding-block: 20px 40px; }
+.wrap { max-width: 560px; margin-inline: auto; display: flex; flex-direction: column; gap: 14px; }
+h1, h2, h3, .big { font-family: var(--f-display); margin: 0; text-wrap: balance; }
+h1 { font-size: 26px; letter-spacing: -0.01em; }
+h2 { font-size: 19px; }
+h3 { font-size: 15px; }
+p { margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.today-label { color: var(--muted); font-size: 14px; }
+.tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.tabs button { border: 0; background: transparent; padding: 10px 6px; border-radius: 9px; font-weight: 600; font-size: 15px; color: var(--muted); cursor: pointer; }
+.tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg); }
+section { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.hero { background: var(--period); color: var(--on-accent); border-radius: 18px; padding: 22px 20px; display: flex; flex-direction: column; gap: 6px; }
+.eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: 0.09em; font-weight: 600; opacity: 0.9; }
+.big { font-size: 38px; font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; }
+.hero .sub { font-size: 18px; font-weight: 600; }
+.hero .small { font-size: 14px; opacity: 0.92; }
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+.stat { display: flex; flex-direction: column; gap: 2px; }
+.stat .big { font-size: 28px; color: var(--ink); }
+.banner { background: var(--ovul-soft); border: 1px solid var(--ovul); border-radius: 12px; padding: 12px 14px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; font-size: 14px; }
+.btn { border: 1px solid var(--line); background: transparent; border-radius: 10px; padding: 11px 14px; font-weight: 600; cursor: pointer; }
+.btn.primary { background: var(--period); border-color: var(--period); color: var(--on-accent); }
+.btn.danger { color: var(--period); border-color: var(--period); }
+.btn.sm { padding: 7px 10px; font-size: 14px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; }
+.row > .btn { flex: 1 1 140px; }
+label { font-size: 14px; font-weight: 600; }
+input[type="date"], select, textarea { width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+textarea { resize: vertical; min-height: 64px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 7px 13px; font-size: 14px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--period-soft); border-color: var(--period); color: var(--period); font-weight: 600; }
+.tl { display: grid; gap: 2px; }
+.tl i { height: 24px; border-radius: 3px; background: var(--line); display: block; }
+.tl i.tp { background: var(--period); }
+.tl i.tf { background: var(--fertile-soft); box-shadow: inset 0 0 0 1px var(--fertile); }
+.tl i.to { background: var(--ovul); }
+.tl i.tt { outline: 2px solid var(--ink); outline-offset: 1px; }
+.tl-ends { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); }
+.legend span::before { content: ""; display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; background: var(--line); }
+.legend .l-p::before { background: var(--period); }
+.legend .l-pp::before { background: var(--period-soft); box-shadow: inset 0 0 0 1px var(--period); }
+.legend .l-f::before { background: var(--fertile-soft); box-shadow: inset 0 0 0 1px var(--fertile); }
+.legend .l-o::before { background: var(--ovul); }
+.cal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cal-head h2 { text-align: center; flex: 1; }
+.cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal .dow { text-align: center; font-size: 12px; color: var(--muted); padding-bottom: 2px; }
+.day { aspect-ratio: 1; min-width: 0; border: 1px solid transparent; background: transparent; border-radius: 9px; font-size: 14px; cursor: pointer; position: relative; padding: 0; }
+.day.d-p { background: var(--period); color: var(--on-accent); font-weight: 600; }
+.day.d-pp { background: var(--period-soft); border: 1px dashed var(--period); }
+.day.d-o { background: var(--ovul-soft); border-color: var(--ovul); font-weight: 600; }
+.day.d-f { background: var(--fertile-soft); }
+.day.is-today { box-shadow: 0 0 0 2px var(--ink); font-weight: 700; }
+.day.is-sel { outline: 2px solid var(--focus); outline-offset: 1px; }
+.day.has-sym::after { content: ""; position: absolute; bottom: 4px; left: 50%; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: currentColor; }
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.item { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding-block: 12px; border-top: 1px solid var(--line); }
+.item:first-child { border-top: 0; padding-top: 0; }
+.item-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.meta { color: var(--muted); font-size: 14px; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag { font-size: 12px; padding: 2px 9px; border-radius: 999px; background: var(--period-soft); color: var(--period); font-weight: 600; }
+.link { border: 0; background: transparent; color: var(--period); font-weight: 600; font-size: 14px; cursor: pointer; padding: 4px 0; flex: none; }
+.sum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+details summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+details p { margin-top: 8px; }
+#backup { min-height: 96px; font-size: 12px; }
+.foot { font-size: 13px; color: var(--muted); }
+#toast { position: fixed; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); margin-inline: auto; max-width: 420px; background: var(--ink); color: var(--bg); padding: 12px 16px; border-radius: 12px; font-size: 14px; text-align: center; opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity .2s, transform .2s; }
+#toast.show { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
+</style>
+<style>
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); color-scheme: light dark; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Mes Lunes</h1>
+    <span class="today-label" id="todayLabel"></span>
+  </header>
+
+  <div class="banner" id="sampleBanner" hidden>
+    <span>Example data, not saved. Log the first day of your last period to start with your own.</span>
+    <button class="btn sm" data-act="clearsample" type="button">Clear examples</button>
+  </div>
+
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button type="button" role="tab" data-act="tab" data-tab="today" aria-selected="true">Today</button>
+    <button type="button" role="tab" data-act="tab" data-tab="cal" aria-selected="false">Calendar</button>
+    <button type="button" role="tab" data-act="tab" data-tab="hist" aria-selected="false">History</button>
+  </nav>
+
+  <section id="tab-today">
+    <div id="summary" style="display:contents"></div>
+
+    <div class="card" id="logcard">
+      <h2>Log</h2>
+      <div>
+        <label for="logDate">Date</label>
+        <input type="date" id="logDate">
+      </div>
+      <div class="row">
+        <button class="btn primary" type="button" data-act="start">Period started</button>
+        <button class="btn" type="button" data-act="end">Period ended</button>
+      </div>
+      <h3>Flow</h3>
+      <div class="chips" id="flowChips"></div>
+      <h3>Symptoms</h3>
+      <div class="chips" id="symChips"></div>
+      <div>
+        <label for="logNote">Note</label>
+        <textarea id="logNote" placeholder="Anything else you felt"></textarea>
+      </div>
+      <button class="btn primary" type="button" data-act="save">Save symptoms for this date</button>
+    </div>
+  </section>
+
+  <section id="tab-cal" hidden>
+    <div class="card">
+      <div class="cal-head">
+        <button class="btn sm" type="button" data-act="calprev" aria-label="Previous month">Prev</button>
+        <h2 id="calTitle"></h2>
+        <button class="btn sm" type="button" data-act="calnext" aria-label="Next month">Next</button>
+      </div>
+      <div class="cal" id="calGrid"></div>
+      <div class="legend">
+        <span class="l-p">Period</span><span class="l-pp">Predicted period</span><span class="l-f">Fertile window</span><span class="l-o">Ovulation</span>
+      </div>
+    </div>
+    <div class="card" id="dayDetail"></div>
+  </section>
+
+  <section id="tab-hist" hidden>
+    <div class="card" id="histStats"></div>
+    <div class="card"><h2>Past cycles</h2><ul class="list" id="cycleList"></ul></div>
+    <div class="card"><h2>Symptom log</h2><ul class="list" id="symList"></ul></div>
+    <div class="card">
+      <h2>Settings</h2>
+      <div>
+        <label for="luteal">Luteal phase length (days from ovulation to next period)</label>
+        <select id="luteal"></select>
+      </div>
+      <p class="small muted">Ovulation is estimated as your expected next period minus this many days. 14 is the usual average, and it can range from about 10 to 16 days between people. The fertile window runs from 5 days before ovulation to 1 day after, because sperm can survive up to about 5 days and the egg lasts roughly a day.</p>
+    </div>
+    <div class="card">
+      <h2>Backup</h2>
+      <p class="small muted">Your entries stay in this browser only. Download a backup file and keep it in your own storage, such as Files, iCloud Drive or Google Drive. Restore it any time.</p>
+      <div class="row">
+        <button class="btn primary" type="button" data-act="download">Download backup</button>
+        <button class="btn" type="button" data-act="pickfile">Restore from file</button>
+      </div>
+      <input type="file" id="fileIn" accept=".json,application/json" hidden>
+      <p class="small muted" id="lastBackup"></p>
+      <details>
+        <summary>Other ways</summary>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+          <button class="btn" type="button" data-act="copy">Copy backup as text</button>
+          <label for="backup">Backup text</label>
+          <textarea id="backup" placeholder="Paste a backup here to restore it"></textarea>
+          <button class="btn" type="button" data-act="restore">Restore from pasted text</button>
+        </div>
+      </details>
+      <button class="btn danger" type="button" data-act="erase">Erase all data</button>
+    </div>
+  </section>
+
+  <p class="foot">Dates are estimates from the calendar method. They cannot confirm ovulation and are not a method of contraception. See a doctor for irregular cycles or any concern.</p>
+</div>
+<div id="toast" role="status"></div>
+
+<script>
+(function () {
+  var KEY = 'mycycle.v1';
+  var DAY = 86400000;
+  var SYM = ['Cramps', 'Headache', 'Bloating', 'Breast tenderness', 'Fatigue', 'Mood swings', 'Low mood', 'Acne', 'Back pain', 'Nausea', 'Cravings', 'Spotting'];
+  var FLOW = ['Light', 'Medium', 'Heavy'];
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function toDay(s) { var p = s.split('-').map(Number); return Math.round(Date.UTC(p[0], p[1] - 1, p[2]) / DAY); }
+  function fromDay(n) { return new Date(n * DAY).toISOString().slice(0, 10); }
+  function todayDay() { var t = new Date(); return Math.round(Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) / DAY); }
+  function fmt(n, o) { return new Date(n * DAY).toLocaleDateString('en-GB', Object.assign({ timeZone: 'UTC' }, o)); }
+  function fShort(n) { return fmt(n, { weekday: 'short', day: 'numeric', month: 'short' }); }
+  function fDM(n) { return fmt(n, { day: 'numeric', month: 'short' }); }
+  function fFull(n) { return fmt(n, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }); }
+  function uid() { return Math.random().toString(36).slice(2, 9); }
+  function rel(n, t) {
+    var d = n - t;
+    if (d === 0) return 'today';
+    if (d === 1) return 'tomorrow';
+    if (d === -1) return 'yesterday';
+    return d > 0 ? 'in ' + d + ' days' : (-d) + ' days ago';
+  }
+
+  var state, sample = false, tab = 'today', selDay = null, cal = null, toastTimer;
+  var T = todayDay();
+
+  function empty() { return { periods: [], symptoms: [], luteal: 14 }; }
+  function sampleState() {
+    var s = T - 9, starts = [s];
+    [28, 27, 29, 28].forEach(function (L) { s -= L; starts.unshift(s); });
+    var st = empty();
+    starts.forEach(function (d) { st.periods.push({ id: uid(), start: fromDay(d), end: fromDay(d + 4) }); });
+    var last = starts[starts.length - 1], prev = starts[starts.length - 2];
+    st.symptoms.push({ id: uid(), date: fromDay(last), tags: ['Cramps', 'Fatigue'], flow: 'Medium', note: '' });
+    st.symptoms.push({ id: uid(), date: fromDay(last + 1), tags: ['Cramps', 'Back pain'], flow: 'Heavy', note: '' });
+    st.symptoms.push({ id: uid(), date: fromDay(prev - 2), tags: ['Bloating', 'Mood swings'], flow: '', note: 'Example note' });
+    st.symptoms.push({ id: uid(), date: fromDay(prev), tags: ['Cramps'], flow: 'Medium', note: '' });
+    return st;
+  }
+  function valid(s) { return s && Array.isArray(s.periods) && Array.isArray(s.symptoms); }
+  function clean(s) {
+    var re = /^\d{4}-\d{2}-\d{2}$/;
+    var out = empty();
+    var l = Number(s.luteal); out.luteal = l >= 10 && l <= 16 ? Math.round(l) : 14;
+    s.periods.forEach(function (p) {
+      if (p && re.test(p.start)) out.periods.push({ id: p.id || uid(), start: p.start, end: re.test(p.end || '') ? p.end : undefined });
+    });
+    s.symptoms.forEach(function (x) {
+      if (x && re.test(x.date)) out.symptoms.push({ id: x.id || uid(), date: x.date, tags: Array.isArray(x.tags) ? x.tags.map(String) : [], flow: String(x.flow || ''), note: String(x.note || '') });
+    });
+    return out;
+  }
+  function load() {
+    try { var r = localStorage.getItem(KEY); if (r) { var s = JSON.parse(r); if (valid(s)) return clean(s); } } catch (e) {}
+    return null;
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast('Could not save in this browser. Copy a backup from History.'); }
+  }
+  function mutate(fn) {
+    if (sample) { state = empty(); sample = false; }
+    fn();
+    save();
+    render();
+  }
+  function toast(msg) {
+    var el = $('toast'); el.textContent = msg; el.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { el.classList.remove('show'); }, 2600);
+  }
+
+  function calc() {
+    var L = state.luteal;
+    var ps = state.periods.slice().sort(function (a, b) { return a.start < b.start ? -1 : 1; });
+    if (!ps.length) return null;
+    var starts = ps.map(function (p) { return toDay(p.start); });
+    var lens = [];
+    for (var i = 1; i < starts.length; i++) lens.push(starts[i] - starts[i - 1]);
+    var recent = lens.slice(-6);
+    var avg = 28, min = 26, max = 30;
+    if (recent.length) {
+      avg = Math.round(recent.reduce(function (a, b) { return a + b; }, 0) / recent.length);
+      if (recent.length >= 3) { min = Math.min.apply(null, recent); max = Math.max.apply(null, recent); }
+      else { min = Math.min(26, avg); max = Math.max(30, avg); }
+    }
+    var durs = ps.filter(function (p) { return p.end; }).map(function (p) { return toDay(p.end) - toDay(p.start) + 1; }).filter(function (x) { return x > 0 && x <= 14; });
+    var plen = durs.length ? Math.round(durs.reduce(function (a, b) { return a + b; }, 0) / durs.length) : 5;
+    var last = starts[starts.length - 1];
+    var next = last + avg;
+    var cs = starts.slice();
+    for (var k = 1; k <= 6; k++) cs.push(last + avg * k);
+    var marks = new Map();
+    function add(d, key, v) { var m = marks.get(d) || {}; m[key] = v; marks.set(d, m); }
+    for (var j = 0; j < cs.length; j++) {
+      var pred = j >= starts.length;
+      var end = (!pred && ps[j].end) ? toDay(ps[j].end) : cs[j] + plen - 1;
+      for (var d = cs[j]; d <= end; d++) add(d, 'p', pred ? 'p' : 'a');
+      if (j + 1 < cs.length) {
+        var ov = cs[j + 1] - L, pr = (j + 1) >= starts.length;
+        add(ov, 'o', pr ? 'p' : 'e');
+        for (var f = ov - 5; f <= ov + 1; f++) add(f, 'f', pr ? 'p' : 'e');
+      }
+    }
+    return { ps: ps, starts: starts, lens: lens, avg: avg, min: min, max: max, plen: plen, last: last, next: next, L: L,
+      nextRange: [last + min, last + max], ov: next - L, fert: [next - L - 5, next - L + 1], ovRange: [last + min - L, last + max - L],
+      marks: marks, basis: recent.length };
+  }
+
+  function renderSummary() {
+    var c = calc(), el = $('summary');
+    if (!c) {
+      el.innerHTML = '<div class="card"><h2>Start here</h2><p class="muted">Pick the first day of your last period in the Log card below and tap Period started. Mes Lunes then shows your next period and ovulation estimates.</p></div>';
+      return;
+    }
+    var cd = T - c.last + 1, diff = c.next - T, relNext;
+    if (diff > 1) relNext = 'in ' + diff + ' days';
+    else if (diff === 1) relNext = 'tomorrow';
+    else if (diff === 0) relNext = 'today, based on your average';
+    else relNext = (-diff) + ' day' + (diff === -1 ? '' : 's') + ' later than your average';
+    var basis = c.basis ? 'Based on your last ' + c.basis + ' cycle' + (c.basis > 1 ? 's' : '') + ' (average ' + c.avg + ' days)'
+      : 'Based on a typical 26 to 30 day cycle. Log more periods to personalise it';
+    var od = c.ov - T, ovLabel = od >= 0 ? rel(c.ov, T) : 'was ' + rel(c.ov, T);
+    var fl;
+    if (T >= c.fert[0] && T <= c.fert[1]) fl = 'You are in the estimated fertile window.';
+    else if (T < c.fert[0]) fl = 'Fertile window starts ' + rel(c.fert[0], T) + '.';
+    else fl = 'Fertile window ended ' + rel(c.fert[1], T) + '.';
+    var N = Math.min(Math.max(c.avg, cd), 60), cells = '';
+    for (var i = 0; i < N; i++) {
+      var d = c.last + i, m = c.marks.get(d) || {}, cls = m.p ? 'tp' : m.o ? 'to' : m.f ? 'tf' : '';
+      if (d === T) cls += ' tt';
+      cells += '<i class="' + cls + '" title="Day ' + (i + 1) + ', ' + fDM(d) + '"></i>';
+    }
+    el.innerHTML =
+      '<div class="hero"><p class="eyebrow">Next period</p><p class="big">' + fShort(c.next) + '</p><p class="sub">' + relNext + '</p>' +
+      '<p class="small">Expected between ' + fDM(c.nextRange[0]) + ' and ' + fDM(c.nextRange[1]) + '</p>' +
+      '<p class="small">' + basis + '. Today is cycle day ' + cd + '.</p></div>' +
+      '<div class="card"><h2>Ovulation and fertile window</h2>' +
+      '<div class="stat"><span class="eyebrow muted">Estimated ovulation</span><span class="big">' + fShort(c.ov) + '</span><span class="muted">' + ovLabel + '. Could fall between ' + fDM(c.ovRange[0]) + ' and ' + fDM(c.ovRange[1]) + '.</span></div>' +
+      '<p><strong>Fertile window:</strong> ' + fDM(c.fert[0]) + ' to ' + fDM(c.fert[1]) + '. ' + fl + '</p>' +
+      '<div class="tl" style="grid-template-columns:repeat(' + N + ',1fr)" role="img" aria-label="Current cycle timeline">' + cells + '</div>' +
+      '<div class="tl-ends"><span>Day 1 · ' + fDM(c.last) + '</span><span>Day ' + N + '</span></div>' +
+      '<div class="legend"><span class="l-p">Period</span><span class="l-f">Fertile</span><span class="l-o">Ovulation</span></div></div>';
+  }
+
+  function dayStatus(d, c) {
+    var m = c.marks.get(d) || {}, out = [];
+    if (m.p === 'a') out.push('Period (logged)');
+    else if (m.p === 'p') out.push('Predicted period');
+    if (m.o) out.push((m.o === 'p' ? 'Estimated' : 'Retrospective estimate of') + ' ovulation day');
+    if (m.f && !m.o) out.push(m.f === 'p' ? 'Estimated fertile window' : 'Fertile window (estimate)');
+    return out;
+  }
+
+  function renderCal() {
+    var c = calc();
+    if (!cal) { var t = new Date(T * DAY); cal = { y: t.getUTCFullYear(), m: t.getUTCMonth() }; }
+    $('calTitle').textContent = new Date(Date.UTC(cal.y, cal.m, 1)).toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    var first = Math.round(Date.UTC(cal.y, cal.m, 1) / DAY);
+    var lead = (new Date(first * DAY).getUTCDay() + 6) % 7;
+    var dim = new Date(Date.UTC(cal.y, cal.m + 1, 0)).getUTCDate();
+    var symDates = {};
+    state.symptoms.forEach(function (s) { symDates[s.date] = 1; });
+    var h = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map(function (x) { return '<span class="dow">' + x + '</span>'; }).join('');
+    for (var i = 0; i < lead; i++) h += '<span></span>';
+    for (var n = 0; n < dim; n++) {
+      var d = first + n, m = c ? (c.marks.get(d) || {}) : {}, cls = 'day';
+      if (m.p === 'a') cls += ' d-p'; else if (m.p === 'p') cls += ' d-pp'; else if (m.o) cls += ' d-o'; else if (m.f) cls += ' d-f';
+      if (d === T) cls += ' is-today';
+      if (d === selDay) cls += ' is-sel';
+      if (symDates[fromDay(d)]) cls += ' has-sym';
+      h += '<button type="button" class="' + cls + '" data-act="calday" data-day="' + d + '" aria-label="' + fFull(d) + '">' + (n + 1) + '</button>';
+    }
+    $('calGrid').innerHTML = h;
+    var det = $('dayDetail');
+    if (selDay === null) { det.innerHTML = '<p class="muted">Tap a day to see its status and symptoms.</p>'; return; }
+    var st = c ? dayStatus(selDay, c) : [];
+    var ents = state.symptoms.filter(function (s) { return s.date === fromDay(selDay); });
+    var body = '<h2>' + fFull(selDay) + '</h2>';
+    body += '<p>' + (st.length ? st.join('. ') + '.' : 'No cycle event on this day.') + '</p>';
+    ents.forEach(function (s) {
+      body += '<div class="tags">' + (s.flow ? '<span class="tag">' + esc(s.flow) + ' flow</span>' : '') + s.tags.map(function (x) { return '<span class="tag">' + esc(x) + '</span>'; }).join('') + '</div>' + (s.note ? '<p class="muted small">' + esc(s.note) + '</p>' : '');
+    });
+    if (selDay <= T) body += '<button class="btn" type="button" data-act="calgo" data-day="' + selDay + '">Log for this day</button>';
+    det.innerHTML = body;
+  }
+
+  function renderHist() {
+    var c = calc();
+    var stats = $('histStats');
+    if (!c) {
+      stats.innerHTML = '<h2>Overview</h2><p class="muted">No cycles logged yet.</p>';
+      $('cycleList').innerHTML = '<li class="muted">Nothing here yet.</li>';
+    } else {
+      stats.innerHTML = '<h2>Overview</h2><div class="sum">' +
+        '<div class="stat"><span class="big">' + c.avg + '</span><span class="muted small">avg cycle, days</span></div>' +
+        '<div class="stat"><span class="big">' + (c.basis >= 1 ? c.min + '–' + c.max : '26–30') + '</span><span class="muted small">' + (c.basis >= 3 ? 'range, days' : 'assumed range') + '</span></div>' +
+        '<div class="stat"><span class="big">' + c.ps.length + '</span><span class="muted small">periods logged</span></div></div>';
+      var h = '';
+      for (var i = c.ps.length - 1; i >= 0; i--) {
+        var p = c.ps[i], s = c.starts[i], nx = c.starts[i + 1];
+        var upto = nx ? nx - 1 : s + 60, counts = {};
+        state.symptoms.forEach(function (x) { var d = toDay(x.date); if (d >= s && d <= upto) x.tags.forEach(function (t) { counts[t] = (counts[t] || 0) + 1; }); });
+        var tags = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; }).slice(0, 6);
+        var meta = nx ? (nx - s) + ' day cycle' : 'Current cycle · day ' + (T - s + 1);
+        h += '<li class="item"><div class="item-main"><strong>' + fDM(s) + (p.end ? ' to ' + fDM(toDay(p.end)) : '') + ' ' + new Date(s * DAY).getUTCFullYear() + '</strong><span class="meta">' + meta + '</span>' +
+          (tags.length ? '<div class="tags">' + tags.map(function (t) { return '<span class="tag">' + esc(t) + '</span>'; }).join('') + '</div>' : '') +
+          '</div><button class="link" type="button" data-act="del" data-kind="period" data-id="' + p.id + '">Delete</button></li>';
+      }
+      $('cycleList').innerHTML = h;
+    }
+    var sy = state.symptoms.slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+    $('symList').innerHTML = sy.length ? sy.map(function (s) {
+      return '<li class="item"><div class="item-main"><strong>' + fFull(toDay(s.date)) + '</strong>' +
+        '<div class="tags">' + (s.flow ? '<span class="tag">' + esc(s.flow) + ' flow</span>' : '') + s.tags.map(function (x) { return '<span class="tag">' + esc(x) + '</span>'; }).join('') + '</div>' +
+        (s.note ? '<span class="meta">' + esc(s.note) + '</span>' : '') + '</div>' +
+        '<button class="link" type="button" data-act="del" data-kind="sym" data-id="' + s.id + '">Delete</button></li>';
+    }).join('') : '<li class="muted">No symptoms logged yet.</li>';
+    $('luteal').value = String(state.luteal);
+    var lb = getLast();
+    $('lastBackup').textContent = lb ? 'Last backup: ' + fFull(toDay(lb)) + '.' : 'No backup downloaded yet.';
+  }
+
+  function render() {
+    $('sampleBanner').hidden = !sample;
+    renderSummary(); renderCal(); renderHist();
+  }
+
+  function setTab(t) {
+    tab = t;
+    ['today', 'cal', 'hist'].forEach(function (k) { $('tab-' + k).hidden = k !== t; });
+    document.querySelectorAll('[data-act="tab"]').forEach(function (b) { b.setAttribute('aria-selected', b.dataset.tab === t ? 'true' : 'false'); });
+  }
+
+  function loadForm() {
+    var date = $('logDate').value;
+    var e = state.symptoms.find(function (s) { return s.date === date; });
+    document.querySelectorAll('#symChips .chip').forEach(function (b) { b.setAttribute('aria-pressed', e && e.tags.indexOf(b.dataset.v) > -1 ? 'true' : 'false'); });
+    document.querySelectorAll('#flowChips .chip').forEach(function (b) { b.setAttribute('aria-pressed', e && e.flow === b.dataset.v ? 'true' : 'false'); });
+    $('logNote').value = e ? e.note : '';
+  }
+
+  function armed(b, label, fn) {
+    if (b.dataset.armed) { fn(); return; }
+    var orig = b.textContent;
+    b.dataset.armed = '1'; b.textContent = label;
+    setTimeout(function () { if (b.isConnected) { delete b.dataset.armed; b.textContent = orig; } }, 3000);
+  }
+
+  document.addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-act]');
+    if (!b) return;
+    var a = b.dataset.act, date = $('logDate').value;
+    if (a === 'tab') setTab(b.dataset.tab);
+    else if (a === 'chip') b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+    else if (a === 'flow') {
+      var on = b.getAttribute('aria-pressed') === 'true';
+      document.querySelectorAll('#flowChips .chip').forEach(function (x) { x.setAttribute('aria-pressed', 'false'); });
+      b.setAttribute('aria-pressed', on ? 'false' : 'true');
+    }
+    else if (a === 'start') {
+      if (!date) return toast('Pick a date first.');
+      var dd = toDay(date);
+      if (!sample && state.periods.some(function (p) { return Math.abs(toDay(p.start) - dd) < 10; })) return toast('A period start is already logged within 10 days of this date.');
+      mutate(function () { state.periods.push({ id: uid(), start: date }); });
+      toast('Period start saved for ' + fDM(dd) + '.');
+    }
+    else if (a === 'end') {
+      if (!date) return toast('Pick a date first.');
+      var dn = toDay(date), cand = null;
+      if (!sample) state.periods.forEach(function (p) { var s = toDay(p.start); if (s <= dn && dn - s <= 14 && (!cand || s > toDay(cand.start))) cand = p; });
+      if (!cand) return toast('Log a period start within the 14 days before this date first.');
+      mutate(function () { cand.end = date; });
+      toast('Period end saved for ' + fDM(dn) + '.');
+    }
+    else if (a === 'save') {
+      if (!date) return toast('Pick a date first.');
+      var tags = [].map.call(document.querySelectorAll('#symChips .chip[aria-pressed="true"]'), function (x) { return x.dataset.v; });
+      var fl = document.querySelector('#flowChips .chip[aria-pressed="true"]');
+      var note = $('logNote').value.trim();
+      if (!tags.length && !fl && !note) return toast('Choose a flow, a symptom or write a note first.');
+      mutate(function () {
+        state.symptoms = state.symptoms.filter(function (s) { return s.date !== date; });
+        state.symptoms.push({ id: uid(), date: date, tags: tags, flow: fl ? fl.dataset.v : '', note: note });
+      });
+      toast('Saved for ' + fDM(toDay(date)) + '.');
+    }
+    else if (a === 'calprev') { cal.m--; if (cal.m < 0) { cal.m = 11; cal.y--; } renderCal(); }
+    else if (a === 'calnext') { cal.m++; if (cal.m > 11) { cal.m = 0; cal.y++; } renderCal(); }
+    else if (a === 'calday') { selDay = Number(b.dataset.day); renderCal(); }
+    else if (a === 'calgo') {
+      $('logDate').value = fromDay(Number(b.dataset.day)); loadForm(); setTab('today');
+      $('logcard').scrollIntoView({ behavior: 'auto', block: 'start' });
+    }
+    else if (a === 'del') {
+      armed(b, 'Tap again to delete', function () {
+        var id = b.dataset.id, kind = b.dataset.kind;
+        mutate(function () {
+          if (kind === 'period') state.periods = state.periods.filter(function (p) { return p.id !== id; });
+          else state.symptoms = state.symptoms.filter(function (s) { return s.id !== id; });
+        });
+        loadForm();
+      });
+    }
+    else if (a === 'download') {
+      var json = JSON.stringify(sample ? empty() : state, null, 2);
+      var fname = 'meslunes-backup-' + fromDay(T) + '.json';
+      var done = function () { setLast(fromDay(T)); renderHist(); toast('Backup file ready. Keep it somewhere safe.'); };
+      var direct = function () {
+        try {
+          var url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+          var link = document.createElement('a');
+          link.href = url; link.download = fname; document.body.appendChild(link); link.click(); link.remove();
+          setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+          done();
+        } catch (e) { toast('Download is not available here. Use Other ways to copy the text.'); }
+      };
+      var shared = false;
+      try {
+        var file = new File([json], fname, { type: 'application/json' });
+        if (window.matchMedia('(pointer: coarse)').matches && navigator.canShare && navigator.canShare({ files: [file] })) {
+          shared = true;
+          navigator.share({ files: [file] }).then(done, function (err) { if (!err || err.name !== 'AbortError') direct(); });
+        }
+      } catch (e) { shared = false; }
+      if (!shared) direct();
+    }
+    else if (a === 'pickfile') {
+      var open = function () { $('fileIn').click(); };
+      if (!sample && (state.periods.length || state.symptoms.length)) armed(b, 'Tap again: this replaces current data', open);
+      else open();
+    }
+    else if (a === 'copy') {
+      var txt = JSON.stringify(sample ? empty() : state);
+      var ta = $('backup'); ta.value = txt; ta.focus(); ta.select();
+      var ok = function () { toast('Backup copied. Paste it somewhere safe.'); };
+      var no = function () { toast('Backup text is selected. Copy it manually.'); };
+      try { navigator.clipboard.writeText(txt).then(ok, no); } catch (e) { no(); }
+    }
+    else if (a === 'restore') {
+      try {
+        var s = JSON.parse($('backup').value);
+        if (!valid(s)) throw new Error('bad');
+        mutate(function () { state = clean(s); });
+        loadForm(); $('backup').value = ''; toast('Backup restored.');
+      } catch (e) { toast('That text is not a valid Mes Lunes backup.'); }
+    }
+    else if (a === 'erase') {
+      armed(b, 'Tap again to erase everything', function () { mutate(function () { state = empty(); }); loadForm(); toast('All data erased.'); });
+    }
+    else if (a === 'clearsample') { mutate(function () {}); loadForm(); }
+  });
+
+  function getLast() { try { return localStorage.getItem(KEY + '.backup') || ''; } catch (e) { return ''; } }
+  function setLast(v) { try { localStorage.setItem(KEY + '.backup', v); } catch (e) {} }
+  $('fileIn').addEventListener('change', function () {
+    var f = $('fileIn').files && $('fileIn').files[0];
+    if (!f) return;
+    var r = new FileReader();
+    r.onload = function () {
+      try {
+        var s = JSON.parse(String(r.result));
+        if (!valid(s)) throw new Error('bad');
+        mutate(function () { state = clean(s); });
+        loadForm(); toast('Backup restored.');
+      } catch (e) { toast('That file is not a valid Mes Lunes backup.'); }
+      $('fileIn').value = '';
+    };
+    r.onerror = function () { toast('Could not read that file.'); $('fileIn').value = ''; };
+    r.readAsText(f);
+  });
+  $('logDate').addEventListener('change', loadForm);
+  $('luteal').addEventListener('change', function () {
+    var v = Number($('luteal').value);
+    mutate(function () { state.luteal = v; });
+  });
+
+  // init
+  var stored = load();
+  if (stored) state = stored; else { state = sampleState(); sample = true; }
+  $('todayLabel').textContent = fFull(T);
+  $('logDate').value = fromDay(T);
+  $('logDate').max = fromDay(T);
+  $('symChips').innerHTML = SYM.map(function (s) { return '<button type="button" class="chip" data-act="chip" data-v="' + s + '" aria-pressed="false">' + s + '</button>'; }).join('');
+  $('flowChips').innerHTML = FLOW.map(function (s) { return '<button type="button" class="chip" data-act="flow" data-v="' + s + '" aria-pressed="false">' + s + '</button>'; }).join('');
+  var lt = ''; for (var l = 10; l <= 16; l++) lt += '<option value="' + l + '">' + l + ' days' + (l === 14 ? ' (typical)' : '') + '</option>';
+  $('luteal').innerHTML = lt;
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+  render(); loadForm();
+})();
+</script>
+
+</body>
+</html>

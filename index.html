@@ -119,6 +119,14 @@ textarea { resize: vertical; min-height: 64px; }
 details summary { cursor: pointer; font-weight: 600; font-size: 14px; }
 details p { margin-top: 8px; }
 #backup { min-height: 96px; font-size: 12px; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.segbtn { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; min-width: 0; }
+.segbtn .seglabel { font-weight: 600; font-size: 15px; }
+.segbtn .segdate { font-size: 13px; overflow-wrap: anywhere; }
+.segbtn[aria-pressed="true"] { background: var(--period); border-color: var(--period); color: var(--on-accent); }
+.editrow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 8px 0; }
+.editrow > div { min-width: 0; }
+details.edit { margin-top: 4px; }
 .foot { font-size: 13px; color: var(--muted); }
 #toast { position: fixed; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); margin-inline: auto; max-width: 420px; background: var(--ink); color: var(--bg); padding: 12px 16px; border-radius: 12px; font-size: 14px; text-align: center; opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity .2s, transform .2s; }
 #toast.show { opacity: 1; transform: none; }
@@ -152,15 +160,25 @@ body { margin: 0; }
   <section id="tab-today">
     <div id="summary" style="display:contents"></div>
 
+    <div class="card" id="periodcard">
+      <h2>Period</h2>
+      <div class="seg" role="group" aria-label="Period dates">
+        <button type="button" class="segbtn" id="modeStart" data-act="mode" data-mode="start" aria-pressed="true"><span class="seglabel">Period started</span><span class="segdate" id="startShown"></span></button>
+        <button type="button" class="segbtn" id="modeEnd" data-act="mode" data-mode="end" aria-pressed="false"><span class="seglabel">Period ended</span><span class="segdate" id="endShown"></span></button>
+      </div>
+      <div>
+        <label for="periodDate" id="periodDateLabel">Start date</label>
+        <input type="date" id="periodDate">
+      </div>
+      <button class="btn primary" type="button" data-act="saveperiod" id="savePeriod">Save start date</button>
+      <p class="small muted" id="periodHint"></p>
+    </div>
+
     <div class="card" id="logcard">
-      <h2>Log</h2>
+      <h2>Daily log</h2>
       <div>
         <label for="logDate">Date</label>
         <input type="date" id="logDate">
-      </div>
-      <div class="row">
-        <button class="btn primary" type="button" data-act="start">Period started</button>
-        <button class="btn" type="button" data-act="end">Period ended</button>
       </div>
       <h3>Flow</h3>
       <div class="chips" id="flowChips"></div>
@@ -311,7 +329,7 @@ body { margin: 0; }
     if (recent.length) {
       avg = Math.round(recent.reduce(function (a, b) { return a + b; }, 0) / recent.length);
       if (recent.length >= 3) { min = Math.min.apply(null, recent); max = Math.max.apply(null, recent); }
-      else { min = Math.min(26, avg); max = Math.max(30, avg); }
+      else { min = Math.min.apply(null, [26, avg].concat(recent)); max = Math.max.apply(null, [30, avg].concat(recent)); }
     }
     var durs = ps.filter(function (p) { return p.end; }).map(function (p) { return toDay(p.end) - toDay(p.start) + 1; }).filter(function (x) { return x > 0 && x <= 14; });
     var plen = durs.length ? Math.round(durs.reduce(function (a, b) { return a + b; }, 0) / durs.length) : 5;
@@ -360,10 +378,17 @@ body { margin: 0; }
       if (d === T) cls += ' tt';
       cells += '<i class="' + cls + '" title="Day ' + (i + 1) + ', ' + fDM(d) + '"></i>';
     }
+    var rec = c.lens.slice(-6), note = '';
+    if (rec.length >= 2) {
+      var lo = Math.min.apply(null, rec), hi = Math.max.apply(null, rec);
+      if (hi - lo > 7) {
+        note = '<div class="banner" role="note"><span><strong>Your recent cycles vary by ' + (hi - lo) + ' days</strong> (from ' + lo + ' to ' + hi + ' days). Predictions are less reliable, and the ovulation and fertile window estimates may be off. Cycle changes can have many causes, including the approach of menopause. A doctor can help if you are concerned.</span></div>';
+      }
+    }
     el.innerHTML =
       '<div class="hero"><p class="eyebrow">Next period</p><p class="big">' + fShort(c.next) + '</p><p class="sub">' + relNext + '</p>' +
       '<p class="small">Expected between ' + fDM(c.nextRange[0]) + ' and ' + fDM(c.nextRange[1]) + '</p>' +
-      '<p class="small">' + basis + '. Today is cycle day ' + cd + '.</p></div>' +
+      '<p class="small">' + basis + '. Today is cycle day ' + cd + '.</p></div>' + note +
       '<div class="card"><h2>Ovulation and fertile window</h2>' +
       '<div class="stat"><span class="eyebrow muted">Estimated ovulation</span><span class="big">' + fShort(c.ov) + '</span><span class="muted">' + ovLabel + '. Could fall between ' + fDM(c.ovRange[0]) + ' and ' + fDM(c.ovRange[1]) + '.</span></div>' +
       '<p><strong>Fertile window:</strong> ' + fDM(c.fert[0]) + ' to ' + fDM(c.fert[1]) + '. ' + fl + '</p>' +
@@ -434,6 +459,7 @@ body { margin: 0; }
         var meta = nx ? (nx - s) + ' day cycle' : 'Current cycle · day ' + (T - s + 1);
         h += '<li class="item"><div class="item-main"><strong>' + fDM(s) + (p.end ? ' to ' + fDM(toDay(p.end)) : '') + ' ' + new Date(s * DAY).getUTCFullYear() + '</strong><span class="meta">' + meta + '</span>' +
           (tags.length ? '<div class="tags">' + tags.map(function (t) { return '<span class="tag">' + esc(t) + '</span>'; }).join('') + '</div>' : '') +
+          '<details class="edit"><summary>Edit dates</summary><div class="editrow"><div><label for="ps-' + p.id + '">Start</label><input type="date" id="ps-' + p.id + '" value="' + p.start + '"></div><div><label for="pe-' + p.id + '">End</label><input type="date" id="pe-' + p.id + '" value="' + (p.end || '') + '"></div></div><button class="btn sm" type="button" data-act="editperiod" data-id="' + p.id + '">Save dates</button></details>' +
           '</div><button class="link" type="button" data-act="del" data-kind="period" data-id="' + p.id + '">Delete</button></li>';
       }
       $('cycleList').innerHTML = h;
@@ -450,9 +476,39 @@ body { margin: 0; }
     $('lastBackup').textContent = lb ? 'Last backup: ' + fFull(toDay(lb)) + '.' : 'No backup downloaded yet.';
   }
 
+  var pmode = 'start', lastSig = null;
+  function curPeriod() {
+    var best = null;
+    state.periods.forEach(function (q) { if (!best || q.start > best.start) best = q; });
+    return best;
+  }
+  function renderPeriodCard() {
+    var q = curPeriod();
+    $('startShown').textContent = q ? fShort(toDay(q.start)) : 'Not set';
+    $('endShown').textContent = q ? (q.end ? fShort(toDay(q.end)) : 'Not set') : 'Not set';
+    $('modeStart').setAttribute('aria-pressed', pmode === 'start' ? 'true' : 'false');
+    $('modeEnd').setAttribute('aria-pressed', pmode === 'end' ? 'true' : 'false');
+    $('periodDateLabel').textContent = pmode === 'start' ? 'Start date' : 'End date';
+    $('savePeriod').textContent = pmode === 'start' ? 'Save start date' : 'Save end date';
+    $('periodHint').textContent = pmode === 'start'
+      ? (q ? 'Showing the saved start date. Change it to correct this period, or pick a date more than 10 days away to add a new period.' : 'Pick the first day of your period.')
+      : 'Pick the last day of bleeding. A date in the next few days is fine if you expect it.';
+  }
+  function setMode(m) {
+    pmode = m;
+    var q = curPeriod(), def;
+    if (m === 'start') def = q ? q.start : fromDay(T);
+    else if (q && q.end) def = q.end;
+    else if (q) { var st = toDay(q.start); def = fromDay(Math.min(Math.max(T, st), st + 14)); }
+    else def = fromDay(T);
+    $('periodDate').value = def;
+    renderPeriodCard();
+  }
   function render() {
     $('sampleBanner').hidden = !sample;
     renderSummary(); renderCal(); renderHist();
+    var cp = curPeriod(), sig = cp ? cp.id + '|' + cp.start + '|' + (cp.end || '') : '';
+    if (sig !== lastSig) { lastSig = sig; setMode(pmode); } else renderPeriodCard();
   }
 
   function setTab(t) {
@@ -487,23 +543,34 @@ body { margin: 0; }
       document.querySelectorAll('#flowChips .chip').forEach(function (x) { x.setAttribute('aria-pressed', 'false'); });
       b.setAttribute('aria-pressed', on ? 'false' : 'true');
     }
-    else if (a === 'start') {
-      if (!date) return toast('Pick a date first.');
-      var dd = toDay(date);
-      if (!sample && state.periods.some(function (p) { return Math.abs(toDay(p.start) - dd) < 10; })) return toast('A period start is already logged within 10 days of this date.');
-      mutate(function () { state.periods.push({ id: uid(), start: date }); });
-      toast('Period start saved for ' + fDM(dd) + '.');
-    }
-    else if (a === 'end') {
-      if (!date) return toast('Pick a date first.');
-      var dn = toDay(date), cand = null;
-      if (!sample) state.periods.forEach(function (p) { var s = toDay(p.start); if (s <= dn && dn - s <= 14 && (!cand || s > toDay(cand.start))) cand = p; });
-      if (!cand) return toast('Log a period start within the 14 days before this date first.');
-      mutate(function () { cand.end = date; });
-      toast('Period end saved for ' + fDM(dn) + '.');
+    else if (a === 'mode') setMode(b.dataset.mode);
+    else if (a === 'saveperiod') {
+      var pd = $('periodDate').value;
+      if (!pd) return toast('Pick a date first.');
+      var pdd = toDay(pd);
+      if (pmode === 'start') {
+        if (pdd > T) return toast('A period cannot start in the future.');
+        var base = sample ? [] : state.periods, near = null;
+        base.forEach(function (q) { var dd = Math.abs(toDay(q.start) - pdd); if (dd < 10 && (!near || dd < Math.abs(toDay(near.start) - pdd))) near = q; });
+        if (near && near.start === pd) return toast('This start date is already saved.');
+        var nid = near ? near.id : null;
+        mutate(function () {
+          if (nid) state.periods.forEach(function (q) { if (q.id === nid) { q.start = pd; if (q.end && (toDay(q.end) < pdd || toDay(q.end) - pdd > 14)) delete q.end; } });
+          else state.periods.push({ id: uid(), start: pd });
+        });
+        toast(nid ? 'Start date updated to ' + fDM(pdd) + '.' : 'Period start saved for ' + fDM(pdd) + '.');
+      } else {
+        var base2 = sample ? [] : state.periods, cand = null;
+        base2.forEach(function (q) { var st = toDay(q.start); if (st <= pdd && pdd - st <= 14 && (!cand || st > toDay(cand.start))) cand = q; });
+        if (!cand) return toast('No period start found in the 14 days before this date. Save the start first, or use Edit dates in History.');
+        var cid = cand.id;
+        mutate(function () { state.periods.forEach(function (q) { if (q.id === cid) q.end = pd; }); });
+        toast('Period end saved for ' + fDM(pdd) + '.');
+      }
     }
     else if (a === 'save') {
       if (!date) return toast('Pick a date first.');
+      if (toDay(date) > T) return toast('Symptoms can only be saved for today or earlier.');
       var tags = [].map.call(document.querySelectorAll('#symChips .chip[aria-pressed="true"]'), function (x) { return x.dataset.v; });
       var fl = document.querySelector('#flowChips .chip[aria-pressed="true"]');
       var note = $('logNote').value.trim();
@@ -559,6 +626,15 @@ body { margin: 0; }
       if (!sample && (state.periods.length || state.symptoms.length)) armed(b, 'Tap again: this replaces current data', open);
       else open();
     }
+    else if (a === 'editperiod') {
+      if (sample) return toast('Log your own period first.');
+      var pid = b.dataset.id, sv = $('ps-' + pid).value, ev = $('pe-' + pid).value;
+      if (!sv) return toast('Start date is required.');
+      if (toDay(sv) > T) return toast('A period cannot start in the future.');
+      if (ev && (toDay(ev) < toDay(sv) || toDay(ev) - toDay(sv) > 14)) return toast('End date must be between the start date and 14 days after it.');
+      mutate(function () { state.periods.forEach(function (p) { if (p.id === pid) { p.start = sv; if (ev) p.end = ev; else delete p.end; } }); });
+      toast('Dates saved.');
+    }
     else if (a === 'copy') {
       var txt = JSON.stringify(sample ? empty() : state);
       var ta = $('backup'); ta.value = txt; ta.focus(); ta.select();
@@ -609,7 +685,6 @@ body { margin: 0; }
   if (stored) state = stored; else { state = sampleState(); sample = true; }
   $('todayLabel').textContent = fFull(T);
   $('logDate').value = fromDay(T);
-  $('logDate').max = fromDay(T);
   $('symChips').innerHTML = SYM.map(function (s) { return '<button type="button" class="chip" data-act="chip" data-v="' + s + '" aria-pressed="false">' + s + '</button>'; }).join('');
   $('flowChips').innerHTML = FLOW.map(function (s) { return '<button type="button" class="chip" data-act="flow" data-v="' + s + '" aria-pressed="false">' + s + '</button>'; }).join('');
   var lt = ''; for (var l = 10; l <= 16; l++) lt += '<option value="' + l + '">' + l + ' days' + (l === 14 ? ' (typical)' : '') + '</option>';
